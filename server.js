@@ -6,32 +6,54 @@ const app = express();
 const server = http.createServer(app);
 const io = new Server(server);
 
-// Serve static files from the 'public' directory
 app.use(express.static('public'));
 
-// Keep track of the 6 stations (Initial state: 0 = empty)
-// State 0: Off, State 1: Dim, State 2: Bright
-let stations = [0, 0, 0, 0, 0, 0];
+// Keep track of 6 stations. 
+// state: 0 (Empty), 1 (Standby), 2 (Ongoing)
+// queue: Array of team numbers en route (e.g., [4, 7])
+let stations = Array.from({ length: 6 }, () => ({ state: 0, queue: [] }));
 
 io.on('connection', (socket) => {
-    console.log('A committee member connected:', socket.id);
+    console.log('A user connected:', socket.id);
 
-    // Send the current station states to the newly connected user
     socket.emit('init_states', stations);
 
-    // Listen for state changes from any user
-    socket.on('toggle_station', (index) => {
+    // Committee action: Change the lighting state
+    socket.on('cycle_state', (index) => {
         if (index >= 0 && index < 6) {
-            // Cycle the state: 0 -> 1 -> 2 -> 0
-            stations[index] = (stations[index] + 1) % 3;
-            
-            // Broadcast the updated states to EVERYONE (including the sender)
+            stations[index].state = (stations[index].state + 1) % 3;
+            io.emit('update_states', stations);
+        }
+    });
+
+    // Player action: join or leave this station's queue.
+    socket.on('toggle_queue', ({ index, teamId }) => {
+        if (index >= 0 && index < 6 && teamId) {
+            const isQueuedHere = stations[index].queue.includes(teamId);
+
+            // A team may only be queued at one station at a time.
+            stations.forEach(station => {
+                station.queue = station.queue.filter(id => id !== teamId);
+            });
+
+            if (!isQueuedHere) {
+                stations[index].queue.push(teamId);
+            }
+
+            io.emit('update_states', stations);
+        }
+    });
+
+    // Committee action: remove one team from one station's queue.
+    socket.on('remove_from_queue', ({ index, teamId }) => {
+        if (index >= 0 && index < 6 && teamId) {
+            stations[index].queue = stations[index].queue.filter(id => id !== teamId);
             io.emit('update_states', stations);
         }
     });
 
     socket.on('disconnect', () => {
-        console.log('A committee member disconnected');
+        console.log('A user disconnected');
     });
 });
 

@@ -3,76 +3,230 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Station Live Tracker</title>
+    <title>Event Station Tracker</title>
     <script src="/socket.io/socket.io.js"></script>
     <style>
         body {
+            box-sizing: border-box;
             background-color: #1a1a2e;
             color: white;
             font-family: Arial, sans-serif;
             text-align: center;
             margin: 0;
-            padding: 50px;
+            padding: 24px;
+            min-height: 100vh;
         }
+        *, *::before, *::after { box-sizing: inherit; }
+
+        /* --- Login Screen Styles --- */
+        #login-screen {
+            background: rgba(255, 255, 255, 0.05);
+            padding: 30px;
+            border-radius: 15px;
+            width: min(100%, 400px);
+            margin: 30px auto;
+        }
+        .login-section {
+            margin: 20px 0;
+            padding: 20px;
+            border: 1px solid rgba(255,255,255,0.2);
+            border-radius: 10px;
+        }
+        input, select, button {
+            padding: 10px;
+            margin-top: 10px;
+            border-radius: 5px;
+            border: none;
+            width: 80%;
+        }
+        button {
+            background-color: #0984e3;
+            color: white;
+            cursor: pointer;
+            font-weight: bold;
+            transition: background 0.2s;
+        }
+        button:hover { background-color: #74b9ff; }
+
+        /* --- Dashboard Styles --- */
+        #dashboard { display: none; }
+        
         .grid {
             display: grid;
-            grid-template-columns: repeat(3, 1fr);
-            gap: 40px;
-            max-width: 800px;
-            margin: 0 auto;
+            grid-template-columns: repeat(3, minmax(0, 1fr));
+            gap: 18px;
+            width: min(100%, 900px);
+            margin: 30px auto;
         }
         .station {
             display: flex;
             flex-direction: column;
             align-items: center;
             cursor: pointer;
-            padding: 20px;
+            padding: 16px 10px;
             border-radius: 15px;
             background: rgba(255,255,255,0.05);
             transition: transform 0.1s;
         }
-        .station:active {
-            transform: scale(0.95);
+        .station:active { transform: scale(0.95); }
+        
+        .queue-box {
+            margin-top: 15px;
+            min-height: 24px;
+            font-size: 0.9em;
+            color: #bdc3c7;
         }
-        /* House SVG Path */
+        .queued-team {
+            display: inline-flex;
+            align-items: center;
+            background: rgba(255,255,255,0.2);
+            padding: 2px 8px;
+            border-radius: 12px;
+            margin: 0 3px;
+            font-weight: bold;
+        }
+        .queued-team.is-my-team {
+            background: #2ecc71;
+            color: #102a1b;
+            box-shadow: 0 0 10px rgba(46, 204, 113, 0.8);
+        }
+        .remove-queue {
+            display: none;
+            width: auto;
+            padding: 0 3px;
+            margin: 0 0 0 6px;
+            background: transparent;
+            color: #ff7675;
+            font-size: 1em;
+            line-height: 1;
+        }
+        .remove-queue:hover { background: transparent; color: #fab1a0; }
+        body.is-committee .remove-queue { display: inline; }
+
+        /* --- House Visual States --- */
         .house-icon {
             width: 80px;
             height: 80px;
             transition: all 0.3s ease;
         }
-        
         /* State 0: Empty (No light, grey) */
         .state-0 {
             fill: #4a4a4a;
             filter: drop-shadow(0 0 0px transparent);
         }
-        /* State 1: 1 Team (Dim light) */
+        /* State 1: 1 Team (Bright Yellow) */
         .state-1 {
-            fill: #f6e58d;
-            filter: drop-shadow(0 0 10px rgba(246, 229, 141, 0.5));
+            fill: #f1c40f;
+            filter: drop-shadow(0 0 20px rgba(241, 196, 15, 0.8));
         }
-        /* State 2: 2 Teams (Bright light) */
+        /* State 2: 2 Teams Ongoing (Bright Green) */
         .state-2 {
-            fill: #f9ca24;
-            filter: drop-shadow(0 0 25px rgba(249, 202, 36, 1));
+            fill: #2ecc71;
+            filter: drop-shadow(0 0 25px rgba(46, 204, 113, 1));
+        }
+        .credit {
+            position: fixed;
+            right: 12px;
+            bottom: 10px;
+            color: rgba(255, 255, 255, 0.55);
+            font-size: 0.78rem;
+            pointer-events: none;
+        }
+        @media (max-width: 600px) {
+            body { padding: 14px 10px 42px; }
+            h1 { font-size: 1.65rem; }
+            #login-screen { padding: 22px 16px; margin: 12px auto; }
+            .login-section { margin: 14px 0; padding: 14px 10px; }
+            input, select, button { width: 100%; }
+            .grid { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; margin-top: 20px; }
+            .house-icon { width: 62px; height: 62px; }
+            .station h3 { font-size: 1rem; margin: 8px 0 4px; }
+            .queue-box { font-size: 0.8rem; overflow-wrap: anywhere; }
+            .credit { right: 8px; bottom: 6px; }
         }
     </style>
 </head>
 <body>
+    <div class="credit">by Fritz 陳輝</div>
 
-    <h1>Station Status Tracker</h1>
-    <p>Click a house to cycle its state: Empty ➔ 1 Team (Dim) ➔ 2 Teams (Bright) ➔ Empty</p>
+    <!-- LOGIN SCREEN -->
+    <div id="login-screen">
+        <h2>Welcome to the Event</h2>
+        
+        <div class="login-section">
+            <h3>Player Login</h3>
+            <select id="team-select">
+                <option value="" disabled selected>Select your team</option>
+                <!-- Generated options 1 to 12 -->
+                <script>
+                    for(let i=1; i<=12; i++) document.write(`<option value="${i}">Team ${i}</option>`);
+                </script>
+            </select>
+            <br>
+            <button onclick="loginPlayer()">Enter as Player</button>
+        </div>
 
-    <div class="grid" id="station-container">
-        <!-- Stations will be generated here by JS -->
+        <div class="login-section">
+            <h3>Committee Login</h3>
+            <input type="password" id="pwd-input" placeholder="Enter password">
+            <br>
+            <button id="committee-login-button" onclick="loginCommittee()">Enter as Committee</button>
+        </div>
+    </div>
+
+    <!-- DASHBOARD SCREEN -->
+    <div id="dashboard">
+        <h1>Station Status Tracker</h1>
+        <p id="user-role-text"></p>
+        <div class="grid" id="station-container"></div>
     </div>
 
     <script>
         const socket = io();
+        
+        // User Session Variables
+        let userRole = null; // 'player' or 'committee'
+        let userTeam = null; // 1-12 if player
+
+        // --- Authentication Logic ---
+        function loginPlayer() {
+            const teamInput = document.getElementById('team-select').value;
+            if (!teamInput) return alert('Please select a team.');
+            
+            userRole = 'player';
+            userTeam = parseInt(teamInput);
+            showDashboard(`Logged in as: Player (Team ${userTeam})<br><em>Tap a house to join or leave its queue.</em>`);
+        }
+
+        function loginCommittee() {
+            const pwd = document.getElementById('pwd-input').value;
+            if (pwd === 'fritzganteng') {
+                userRole = 'committee';
+                showDashboard(`Logged in as: Committee<br><em>Click a house to cycle its status. Use × to remove a team from a queue.</em>`);
+            } else {
+                alert('Incorrect password.');
+            }
+        }
+
+        document.getElementById('pwd-input').addEventListener('keydown', (event) => {
+            if (event.key === 'Enter') {
+                event.preventDefault();
+                document.getElementById('committee-login-button').click();
+            }
+        });
+
+        function showDashboard(roleMessage) {
+            document.getElementById('login-screen').style.display = 'none';
+            document.getElementById('dashboard').style.display = 'block';
+            document.body.classList.toggle('is-committee', userRole === 'committee');
+            document.getElementById('user-role-text').innerHTML = roleMessage;
+        }
+
+        // --- Dashboard Initialization ---
         const container = document.getElementById('station-container');
         const houseSVG = `<svg viewBox="0 0 24 24" class="house-icon"><path d="M12 3L2 12h3v8h14v-8h3L12 3zm-1 15h-2v-4h4v4h-2z"/></svg>`;
+        const statusTexts = ["Empty", "1 Team Standby", "Ongoing (2 Teams)"];
 
-        // Create the 6 stations in the DOM
         for(let i = 0; i < 6; i++) {
             const div = document.createElement('div');
             div.className = 'station';
@@ -80,33 +234,64 @@
                 ${houseSVG}
                 <h3>Station ${i + 1}</h3>
                 <span class="status-text">Empty</span>
+                <div class="queue-box">Queue: <span class="queue-list">-</span></div>
             `;
-            // Send toggle event to server on click
-            div.onclick = () => socket.emit('toggle_station', i);
+            
+            // Handle clicks based on authenticated role
+            div.onclick = () => {
+                if (userRole === 'committee') {
+                    socket.emit('cycle_state', i);
+                } else if (userRole === 'player') {
+                    socket.emit('toggle_queue', { index: i, teamId: userTeam });
+                }
+            };
+            
             container.appendChild(div);
         }
 
+        // --- Sync UI with Server ---
         const stationsUI = document.querySelectorAll('.station');
-        const statusTexts = ["Empty", "1 Team Standby", "Ongoing (2 Teams)"];
 
-        // Function to update the UI based on the array from the server
-        function renderStates(states) {
-            states.forEach((state, index) => {
+        function renderStates(stationsData) {
+            stationsData.forEach((station, index) => {
                 const icon = stationsUI[index].querySelector('svg');
                 const text = stationsUI[index].querySelector('.status-text');
+                const queueList = stationsUI[index].querySelector('.queue-list');
                 
-                // Reset classes
-                icon.classList.remove('state-0', 'state-1', 'state-2');
+                // Update Color & Text
+                icon.className.baseVal = `house-icon state-${station.state}`;
+                text.innerText = statusTexts[station.state];
                 
-                // Apply new class and text based on state
-                icon.classList.add(`state-${state}`);
-                text.innerText = statusTexts[state];
+                // Update Queue display
+                if (station.queue.length === 0) {
+                    queueList.innerHTML = '-';
+                } else {
+                    queueList.innerHTML = station.queue.map(team => `
+                        <span class="queued-team${userRole === 'player' && team === userTeam ? ' is-my-team' : ''}">
+                            T${team}
+                            <button class="remove-queue" type="button" aria-label="Remove Team ${team}" data-team="${team}">×</button>
+                        </span>`).join(' ');
+
+                    if (userRole === 'committee') {
+                        queueList.querySelectorAll('.queued-team').forEach(teamElement => {
+                            const removeTeam = (event) => {
+                                event.stopPropagation();
+                                socket.emit('remove_from_queue', {
+                                    index,
+                                    teamId: Number(teamElement.dataset.team)
+                                });
+                            };
+                            teamElement.dataset.team = teamElement.querySelector('.remove-queue').dataset.team;
+                            teamElement.onclick = removeTeam;
+                            teamElement.querySelector('.remove-queue').onclick = removeTeam;
+                        });
+                    }
+                }
             });
         }
 
-        // Listeners for server events
-        socket.on('init_states', (states) => renderStates(states));
-        socket.on('update_states', (states) => renderStates(states));
+        socket.on('init_states', renderStates);
+        socket.on('update_states', renderStates);
     </script>
 </body>
 </html>
