@@ -132,6 +132,12 @@
             font-size: 0.78rem;
             pointer-events: none;
         }
+        .credit a {
+            display: block;
+            color: inherit;
+            text-decoration: none;
+            pointer-events: auto;
+        }
         @media (max-width: 600px) {
             body { padding: 14px 10px 42px; }
             h1 { font-size: 1.65rem; }
@@ -147,7 +153,7 @@
     </style>
 </head>
 <body>
-    <div class="credit">by Fritz 陳輝</div>
+    <div class="credit">by Fritz 陳輝<br><a href="https://www.instagram.com/fritz.hns" target="_blank" rel="noopener noreferrer">@fritz.hns</a></div>
 
     <!-- LOGIN SCREEN -->
     <div id="login-screen">
@@ -183,6 +189,9 @@
 
     <script>
         const socket = io();
+        socket.on('queue_full', () => {
+            alert('This house already has 2 teams. Please choose another house.');
+        });
         
         // User Session Variables
         let userRole = null; // 'player' or 'committee'
@@ -200,7 +209,7 @@
 
         function loginCommittee() {
             const pwd = document.getElementById('pwd-input').value;
-            if (pwd === 'fritzganteng') {
+            if (pwd === 'fritzgntg') {
                 userRole = 'committee';
                 showDashboard(`Logged in as: Committee<br><em>Click a house to cycle its status. Use × to remove a team from a queue.</em>`);
             } else {

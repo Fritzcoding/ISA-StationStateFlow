@@ -8,9 +8,10 @@ const io = new Server(server);
 
 app.use(express.static('public'));
 
-// Keep track of 6 stations. 
+// Keep track of 6 stations.
 // state: 0 (Empty), 1 (Standby), 2 (Ongoing)
 // queue: Array of team numbers en route (e.g., [4, 7])
+const MAX_TEAMS_PER_STATION = 2;
 let stations = Array.from({ length: 6 }, () => ({ state: 0, queue: [] }));
 
 io.on('connection', (socket) => {
@@ -30,6 +31,11 @@ io.on('connection', (socket) => {
     socket.on('toggle_queue', ({ index, teamId }) => {
         if (index >= 0 && index < 6 && teamId) {
             const isQueuedHere = stations[index].queue.includes(teamId);
+
+            if (!isQueuedHere && stations[index].queue.length >= MAX_TEAMS_PER_STATION) {
+                socket.emit('queue_full');
+                return;
+            }
 
             // A team may only be queued at one station at a time.
             stations.forEach(station => {
