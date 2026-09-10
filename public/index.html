@@ -169,6 +169,8 @@
                 </script>
             </select>
             <br>
+            <input type="password" id="team-pwd-input" placeholder="Enter team password">
+            <br>
             <button onclick="loginPlayer()">Enter as Player</button>
         </div>
 
@@ -201,6 +203,9 @@
         function loginPlayer() {
             const teamInput = document.getElementById('team-select').value;
             if (!teamInput) return alert('Please select a team.');
+
+            const teamPassword = document.getElementById('team-pwd-input').value;
+            if (teamPassword !== '0322') return alert('Incorrect team password.');
             
             userRole = 'player';
             userTeam = parseInt(teamInput);
@@ -221,6 +226,13 @@
             if (event.key === 'Enter') {
                 event.preventDefault();
                 document.getElementById('committee-login-button').click();
+            }
+        });
+
+        document.getElementById('team-pwd-input').addEventListener('keydown', (event) => {
+            if (event.key === 'Enter') {
+                event.preventDefault();
+                loginPlayer();
             }
         });
 
