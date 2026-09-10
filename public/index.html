@@ -1,0 +1,112 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Station Live Tracker</title>
+    <script src="/socket.io/socket.io.js"></script>
+    <style>
+        body {
+            background-color: #1a1a2e;
+            color: white;
+            font-family: Arial, sans-serif;
+            text-align: center;
+            margin: 0;
+            padding: 50px;
+        }
+        .grid {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 40px;
+            max-width: 800px;
+            margin: 0 auto;
+        }
+        .station {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            cursor: pointer;
+            padding: 20px;
+            border-radius: 15px;
+            background: rgba(255,255,255,0.05);
+            transition: transform 0.1s;
+        }
+        .station:active {
+            transform: scale(0.95);
+        }
+        /* House SVG Path */
+        .house-icon {
+            width: 80px;
+            height: 80px;
+            transition: all 0.3s ease;
+        }
+        
+        /* State 0: Empty (No light, grey) */
+        .state-0 {
+            fill: #4a4a4a;
+            filter: drop-shadow(0 0 0px transparent);
+        }
+        /* State 1: 1 Team (Dim light) */
+        .state-1 {
+            fill: #f6e58d;
+            filter: drop-shadow(0 0 10px rgba(246, 229, 141, 0.5));
+        }
+        /* State 2: 2 Teams (Bright light) */
+        .state-2 {
+            fill: #f9ca24;
+            filter: drop-shadow(0 0 25px rgba(249, 202, 36, 1));
+        }
+    </style>
+</head>
+<body>
+
+    <h1>Station Status Tracker</h1>
+    <p>Click a house to cycle its state: Empty ➔ 1 Team (Dim) ➔ 2 Teams (Bright) ➔ Empty</p>
+
+    <div class="grid" id="station-container">
+        <!-- Stations will be generated here by JS -->
+    </div>
+
+    <script>
+        const socket = io();
+        const container = document.getElementById('station-container');
+        const houseSVG = `<svg viewBox="0 0 24 24" class="house-icon"><path d="M12 3L2 12h3v8h14v-8h3L12 3zm-1 15h-2v-4h4v4h-2z"/></svg>`;
+
+        // Create the 6 stations in the DOM
+        for(let i = 0; i < 6; i++) {
+            const div = document.createElement('div');
+            div.className = 'station';
+            div.innerHTML = `
+                ${houseSVG}
+                <h3>Station ${i + 1}</h3>
+                <span class="status-text">Empty</span>
+            `;
+            // Send toggle event to server on click
+            div.onclick = () => socket.emit('toggle_station', i);
+            container.appendChild(div);
+        }
+
+        const stationsUI = document.querySelectorAll('.station');
+        const statusTexts = ["Empty", "1 Team Standby", "Ongoing (2 Teams)"];
+
+        // Function to update the UI based on the array from the server
+        function renderStates(states) {
+            states.forEach((state, index) => {
+                const icon = stationsUI[index].querySelector('svg');
+                const text = stationsUI[index].querySelector('.status-text');
+                
+                // Reset classes
+                icon.classList.remove('state-0', 'state-1', 'state-2');
+                
+                // Apply new class and text based on state
+                icon.classList.add(`state-${state}`);
+                text.innerText = statusTexts[state];
+            });
+        }
+
+        // Listeners for server events
+        socket.on('init_states', (states) => renderStates(states));
+        socket.on('update_states', (states) => renderStates(states));
+    </script>
+</body>
+</html>
